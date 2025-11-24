@@ -6,8 +6,6 @@ import io
 st.set_page_config(page_title="ALTUM | Topografía", page_icon="📐")
 
 def procesar_nivelacion(df, cota_inicial, cota_llegada_teorica):
-    # Crear listas para almacenar los resultados paso a paso
-    # Esto simula el cálculo manual fila por fila
     resultados = []
     
     # Variables de estado
@@ -16,18 +14,16 @@ def procesar_nivelacion(df, cota_inicial, cota_llegada_teorica):
     dist_acumulada = 0
     
     # Procesamos la primera fila (Punto de inicio)
-    # Asumimos que la primera fila TIENE que tener una vista ATRÁS para arrancar
     primera_atras = df.iloc[0]['Atras']
     ai_actual = cota_actual + primera_atras
     
-    # Guardamos datos fila 0
     resultados.append({
         "AI": ai_actual,
         "Cota_Calc": cota_actual,
         "Dist_Acum": 0
     })
     
-    # Iteramos desde la segunda fila (índice 1) hasta el final
+    # Iteramos desde la segunda fila
     for i in range(1, len(df)):
         fila = df.iloc[i]
         
@@ -41,27 +37,20 @@ def procesar_nivelacion(df, cota_inicial, cota_llegada_teorica):
         
         # 2. Cálculo de Cota
         nueva_cota = 0
-        nueva_ai = None # Por defecto no hay nueva AI a menos que sea punto de cambio
+        nueva_ai = None
         
         if pd.notna(lect_inter):
-            # Es lectura INTERMEDIA
             nueva_cota = ai_actual - lect_inter
-            nueva_ai = ai_actual # La AI se mantiene (solo visual)
+            nueva_ai = ai_actual
             
         elif pd.notna(lect_adel):
-            # Es lectura ADELANTE (Punto de cambio o final)
             nueva_cota = ai_actual - lect_adel
-            
-            # Verificamos si es un Punto de Cambio (tiene Adelante Y Atrás)
             if pd.notna(lect_atras):
-                # Calculamos la NUEVA AI para los siguientes puntos
                 ai_actual = nueva_cota + lect_atras
                 nueva_ai = ai_actual
             else:
-                # Es el punto final, no hay nueva AI
                 nueva_ai = None
         else:
-            # Caso de error en datos
             nueva_cota = 0 
             
         resultados.append({
@@ -70,7 +59,6 @@ def procesar_nivelacion(df, cota_inicial, cota_llegada_teorica):
             "Dist_Acum": dist_acumulada
         })
         
-    # Convertimos resultados a DataFrame y unimos
     df_res = pd.DataFrame(resultados)
     df_final = pd.concat([df.reset_index(drop=True), df_res], axis=1)
     
@@ -82,14 +70,12 @@ st.caption("Sistema de Cálculo y Compensación de Nivelación Geométrica")
 
 uploaded_file = st.file_uploader("Sube tu registro (.xlsx)", type=['xlsx'])
 
-# Enlace para descargar plantilla si el usuario no tiene una
 st.info("El Excel debe tener las columnas: `Punto`, `Distancia`, `Atras`, `Intermedia`, `Adelante`")
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
         
-        # Configuración de parámetros
         col_config1, col_config2 = st.columns(2)
         with col_config1:
             cota_inicio = st.number_input("Cota Inicial (BM)", value=725.000, format="%.3f")
@@ -135,21 +121,17 @@ if uploaded_file:
             st.write(f"**Distancia Total:** {dist_total:.2f} m")
             
             if dist_total > 0:
-                # Fórmula: k = -Error / Distancia Total
                 k = -error_cierre / dist_total
                 
-                # Aplicar compensación: C = k * Dist_Acum
                 df_calc['Compensacion'] = df_calc['Dist_Acum'] * k
                 df_calc['Cota_Compensada'] = df_calc['Cota_Calc'] + df_calc['Compensacion']
                 
-                # Formatear tabla para mostrar
                 st.dataframe(df_calc.style.format({
                     "Atras": "{:.3f}", "Intermedia": "{:.3f}", "Adelante": "{:.3f}",
                     "AI": "{:.3f}", "Cota_Calc": "{:.3f}",
                     "Compensacion": "{:.4f}", "Cota_Compensada": "{:.3f}"
                 }, na_rep=""), use_container_width=True)
                 
-                # Botón de descarga
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     df_calc.to_excel(writer, index=False, sheet_name='Compensacion')
@@ -160,8 +142,22 @@ if uploaded_file:
                     file_name="Nivelacion_ALTUM.xlsx",
                     mime="application/vnd.ms-excel"
                 )
+
+                # --- NUEVO: PERFIL TOPOGRÁFICO ---
+                st.divider()
+                st.subheader("3. Perfil Topográfico")
+                
+                # Creamos un dataframe limpio solo para graficar
+                # Usamos Distancia Acumulada como índice (Eje X) y Cota Compensada como valor (Eje Y)
+                chart_data = df_calc[['Dist_Acum', 'Cota_Compensada']].copy()
+                chart_data.set_index('Dist_Acum', inplace=True)
+                chart_data.rename(columns={'Cota_Compensada': 'Elevación (m)'}, inplace=True)
+                
+                st.line_chart(chart_data)
+                st.caption("Visualización longitudinal del terreno compensado.")
+
             else:
-                st.warning("No se puede compensar: La distancia total es 0.")
+                st.warning("No se puede compensar ni graficar: La distancia total es 0.")
                 
     except Exception as e:
         st.error(f"Ocurrió un error al leer el archivo: {e}")

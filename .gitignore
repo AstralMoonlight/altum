@@ -1,0 +1,14 @@
+# Entornos virtuales
+venv/
+env/
+.env
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
+
+# Archivos de VS Code (configuraciones locales)
+.vscode/
+
+# Archivos temporales del sistema
+.DS_Store

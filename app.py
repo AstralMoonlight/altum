@@ -90,36 +90,66 @@ if uploaded_file:
             # --- CÁLCULOS ---
             df_calc = procesar_nivelacion(df, cota_inicio)
             
+            # Datos para comprobación
             sum_atras = df_calc['Atras'].sum()
             sum_adelante = df_calc['Adelante'].sum()
-            val_aritmetica = sum_atras - sum_adelante
+            val_aritmetica = sum_atras - sum_adelante # (Σ Atrás - Σ Adelante)
             
             cota_final_calc = df_calc.iloc[-1]['Cota_Calc']
-            desnivel = cota_final_calc - cota_inicio
+            desnivel = cota_final_calc - cota_inicio # (Cota Final - Cota Inicial)
             
-            # Chequeo estricto (diferencia menor a 2mm se considera error de redondeo de Python)
-            check_ok = abs(val_aritmetica - desnivel) < 0.002
+            # ERROR MATEMÁTICO (Debe ser 0)
+            discrepancia_matematica = val_aritmetica - desnivel
             
-            # --- RESULTADOS ---
+            # ERROR DE CIERRE (Topográfico)
+            error_cierre = cota_final_calc - cota_llegada
+
+            # Chequeo estricto (tolerancia de redondeo de Python 0.002)
+            check_ok = abs(discrepancia_matematica) < 0.002
+            
+            # --- RESULTADOS VISUALES ---
             st.divider()
-            st.subheader("1. Validación Aritmética")
+            st.subheader("1. Análisis de Errores")
             
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Σ Atrás - Σ Adelante", f"{val_aritmetica:.3f}")
-            col2.metric("Cota Final - Inicial", f"{desnivel:.3f}")
+            # FILA 1: ERROR MATEMÁTICO
+            st.markdown("**A. Comprobación Aritmética (Validación de planilla)**")
+            col_a1, col_a2, col_a3 = st.columns(3)
+            col_a1.metric("Σ Atrás - Σ Adelante", f"{val_aritmetica:.3f}")
+            col_a2.metric("Cota Final - Inicial", f"{desnivel:.3f}")
             
-            if check_ok:
-                col3.success("✅ CORRECTO")
-                st.caption("La comprobación matemática coincide.")
+            # AQUÍ MOSTRAMOS LA DISCREPANCIA (EL ERROR)
+            col_a3.metric(
+                label="Discrepancia (Debe ser 0)", 
+                value=f"{discrepancia_matematica:.4f}",
+                delta="Error Matemático" if not check_ok else "Correcto",
+                delta_color="inverse"
+            )
+            
+            if not check_ok:
+                st.error(f"❌ **ERROR CRÍTICO:** Tienes una diferencia matemática de **{discrepancia_matematica:.4f}**. Revisa si sumaste mal o escribiste mal algún número en el Excel.")
+            else:
+                st.success("✅ **Matemática Correcta:** La planilla está bien calculada.")
                 
-                # --- SI TODO ESTÁ BIEN, MOSTRAMOS COMPENSACIÓN ---
+                # --- SOLO SI LA MATEMÁTICA ESTÁ BIEN, SEGUIMOS ---
                 st.divider()
-                st.subheader("2. Compensación y Resultados")
+                st.markdown("**B. Error de Cierre Topográfico**")
                 
-                error_cierre = cota_final_calc - cota_llegada
+                col_b1, col_b2, col_b3 = st.columns(3)
+                col_b1.metric("Cota Calculada", f"{cota_final_calc:.3f}")
+                col_b2.metric("Cota Real (Llegada)", f"{cota_llegada:.3f}")
+                
+                # AQUÍ MOSTRAMOS EL ERROR DE CIERRE
+                col_b3.metric(
+                    label="Error de Cierre", 
+                    value=f"{error_cierre:.4f} m",
+                    delta="Exceso" if error_cierre > 0 else "Defecto",
+                    delta_color="off" # Off para que sea gris/neutro, o "normal" para rojo/verde
+                )
+
+                st.divider()
+                st.subheader("2. Compensación y Resultados Finales")
+                
                 dist_total = df_calc.iloc[-1]['Dist_Acum']
-                
-                st.write(f"**Error de Cierre:** {error_cierre:.4f} m")
                 
                 if dist_total > 0:
                     k = -error_cierre / dist_total
@@ -148,10 +178,6 @@ if uploaded_file:
                                        file_name="Reporte_ALTUM.xlsx", mime="application/vnd.ms-excel")
                 else:
                     st.warning("Distancia total es 0, no se puede compensar.")
-                    
-            else:
-                col3.error("❌ ERROR MATEMÁTICO")
-                st.error("Las sumas no cuadran con el desnivel. **SE DEBE VOLVER A MEDIR** o revisar la digitación.")
 
     except Exception as e:
         st.error(f"Error leyendo el archivo: {e}")

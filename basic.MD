@@ -7,3 +7,7 @@ python -m venv venv
 
 # 3. Activar el entorno (verás que aparece (venv) en tu terminal)
 source venv/Scripts/activate
+
+#---------
+
+pip install streamlit pandas openpyxl

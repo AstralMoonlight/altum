@@ -34,7 +34,7 @@ Si deseas correr este proyecto en tu propia máquina:
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/tu-usuario/altum.git](https://github.com/tu-usuario/altum.git)
+    git clone [https://github.com/AstralMoonlight/altum](https://github.com/AstralMoonlight/altum)
     cd altum
     ```
 
